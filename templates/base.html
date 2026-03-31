@@ -1,0 +1,15 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="{% static 'style/main.css' %}?version=1.0.2" type="text/css">
+
+    <title>{% block title %}Chess Decision Engine{% endblock %}</title>
+</head>
+<body>
+    {% block content %}
+    {% endblock content %}
+</body>
+</html>
