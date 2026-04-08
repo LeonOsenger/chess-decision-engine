@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="chess-container">
+
+    <div class="game-info">
+        <div class="turn-indicator {% if turn == 'White' %}white-turn{% else %}black-turn{% endif %}">
+            {% if is_checkmate %}
+                Checkmate! {{ turn }} loses.
+            {% elif is_stalemate %}
+                Stalemate! It's a draw.
+            {% elif is_check %}
+                {{ turn }}'s turn &mdash; <span class="check-label">CHECK!</span>
+            {% else %}
+                {{ turn }}'s turn
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="board" id="chess-board">
+        {% for row in squares_data %}
+            {% for square in row %}
+            <div class="square {% if square.is_light %}light{% else %}dark{% endif %}{% if square.has_piece %} has-piece{% endif %}"
+                 data-square="{{ square.name }}"
+                 id="sq-{{ square.name }}">
+                {% if square.rank_label %}
+                    <span class="rank-label">{{ square.rank_label }}</span>
+                {% endif %}
+                {% if square.piece_svg %}
+                    <div class="piece">{{ square.piece_svg|safe }}</div>
+                {% endif %}
+                {% if square.file_label %}
+                    <span class="file-label">{{ square.file_label }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% endfor %}
+    </div>
+
+    <div class="controls">
+        <form method="post" action="{% url 'reset_game' %}">
+            {% csrf_token %}
+            <button type="submit" class="reset-btn">New Game</button>
+        </form>
+    </div>
+
+    <form method="post" action="{% url 'make_move' %}" id="move-form">
+        {% csrf_token %}
+        <input type="hidden" name="from_square" id="from-square-input">
+        <input type="hidden" name="to_square" id="to-square-input">
+    </form>
+</div>
+
+<script>
+    const legalMoves = {{ legal_moves_json|safe }};
+    let selectedSquare = null;
+
+    document.querySelectorAll('.square').forEach(sq => {
+        sq.addEventListener('click', () => handleClick(sq.dataset.square));
+    });
+
+    function handleClick(square) {
+        if (selectedSquare === null) {
+            if (legalMoves[square]) {
+                select(square);
+            }
+        } else if (selectedSquare === square) {
+            deselect();
+        } else if ((legalMoves[selectedSquare] || []).includes(square)) {
+            submitMove(selectedSquare, square);
+        } else if (legalMoves[square]) {
+            deselect();
+            select(square);
+        } else {
+            deselect();
+        }
+    }
+
+    function select(square) {
+        selectedSquare = square;
+        document.getElementById('sq-' + square).classList.add('selected');
+        (legalMoves[square] || []).forEach(target => {
+            document.getElementById('sq-' + target).classList.add('target');
+        });
+    }
+
+    function deselect() {
+        if (selectedSquare) {
+            document.getElementById('sq-' + selectedSquare).classList.remove('selected');
+            (legalMoves[selectedSquare] || []).forEach(target => {
+                document.getElementById('sq-' + target).classList.remove('target');
+            });
+        }
+        selectedSquare = null;
+    }
+
+    function submitMove(from, to) {
+        document.getElementById('from-square-input').value = from;
+        document.getElementById('to-square-input').value = to;
+        document.getElementById('move-form').submit();
+    }
+</script>
+{% endblock %}
