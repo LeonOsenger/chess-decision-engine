@@ -44,54 +44,56 @@ class ChessBoardView(TemplateView):
         opponent_color = not my_turn
 
         my_checks_squares = set()
+        my_captures_squares = set()
+        my_threats_squares = set()
         for move in board.legal_moves:
+            is_cap = board.is_capture(move)
+            from_name = chess.square_name(move.from_square)
+            to_name = chess.square_name(move.to_square)
+            if is_cap:
+                my_captures_squares.add((from_name, to_name))
             board.push(move)
             if board.is_check():
-                my_checks_squares.add(chess.square_name(move.from_square))
-                my_checks_squares.add(chess.square_name(move.to_square))
+                my_checks_squares.add((from_name, to_name))
+            if not is_cap:
+                found_any = False
+                for sq in chess.SQUARES:
+                    opp_piece = board.piece_at(sq)
+                    if opp_piece and opp_piece.color == opponent_color:
+                        if move.to_square in board.attackers(my_turn, sq):
+                            my_threats_squares.add((to_name, chess.square_name(sq)))
+                            found_any = True
+                if found_any:
+                    my_threats_squares.add((from_name, to_name))
             board.pop()
-
-        my_captures_squares = set()
-        for move in board.legal_moves:
-            if board.is_capture(move):
-                my_captures_squares.add(chess.square_name(move.from_square))
-                my_captures_squares.add(chess.square_name(move.to_square))
-
-        my_threats_squares = set()
-        for sq in chess.SQUARES:
-            piece = board.piece_at(sq)
-            if piece and piece.color == opponent_color:
-                if board.is_attacked_by(my_turn, sq):
-                    my_threats_squares.add(chess.square_name(sq))
-                    for attacker_sq in board.attackers(my_turn, sq):
-                        my_threats_squares.add(chess.square_name(attacker_sq))
 
         temp_board = board.copy()
         temp_board.turn = opponent_color
         temp_board.ep_square = None
 
         opponent_checks_squares = set()
+        opponent_captures_squares = set()
+        opponent_threats_squares = set()
         for move in temp_board.legal_moves:
+            is_cap = temp_board.is_capture(move)
+            from_name = chess.square_name(move.from_square)
+            to_name = chess.square_name(move.to_square)
+            if is_cap:
+                opponent_captures_squares.add((from_name, to_name))
             temp_board.push(move)
             if temp_board.is_check():
-                opponent_checks_squares.add(chess.square_name(move.from_square))
-                opponent_checks_squares.add(chess.square_name(move.to_square))
+                opponent_checks_squares.add((from_name, to_name))
+            if not is_cap:
+                found_any = False
+                for sq in chess.SQUARES:
+                    my_piece = temp_board.piece_at(sq)
+                    if my_piece and my_piece.color == my_turn:
+                        if move.to_square in temp_board.attackers(opponent_color, sq):
+                            opponent_threats_squares.add((to_name, chess.square_name(sq)))
+                            found_any = True
+                if found_any:
+                    opponent_threats_squares.add((from_name, to_name))
             temp_board.pop()
-
-        opponent_captures_squares = set()
-        for move in temp_board.legal_moves:
-            if temp_board.is_capture(move):
-                opponent_captures_squares.add(chess.square_name(move.from_square))
-                opponent_captures_squares.add(chess.square_name(move.to_square))
-
-        opponent_threats_squares = set()
-        for sq in chess.SQUARES:
-            piece = board.piece_at(sq)
-            if piece and piece.color == my_turn:
-                if board.is_attacked_by(opponent_color, sq):
-                    opponent_threats_squares.add(chess.square_name(sq))
-                    for attacker_sq in board.attackers(opponent_color, sq):
-                        opponent_threats_squares.add(chess.square_name(attacker_sq))
 
         context['squares_data'] = squares_data
         context['legal_moves_json'] = json.dumps(legal_moves_map)
@@ -99,12 +101,12 @@ class ChessBoardView(TemplateView):
         context['is_checkmate'] = board.is_checkmate()
         context['is_stalemate'] = board.is_stalemate()
         context['is_check'] = board.is_check()
-        context['my_checks_json']           = json.dumps(sorted(my_checks_squares))
-        context['my_captures_json']         = json.dumps(sorted(my_captures_squares))
-        context['my_threats_json']          = json.dumps(sorted(my_threats_squares))
-        context['opponent_checks_json']     = json.dumps(sorted(opponent_checks_squares))
-        context['opponent_captures_json']   = json.dumps(sorted(opponent_captures_squares))
-        context['opponent_threats_json']    = json.dumps(sorted(opponent_threats_squares))
+        context['my_checks_json']         = json.dumps(sorted(my_checks_squares))
+        context['my_captures_json']       = json.dumps(sorted(my_captures_squares))
+        context['my_threats_json']        = json.dumps(sorted(my_threats_squares))
+        context['opponent_checks_json']   = json.dumps(sorted(opponent_checks_squares))
+        context['opponent_captures_json'] = json.dumps(sorted(opponent_captures_squares))
+        context['opponent_threats_json']  = json.dumps(sorted(opponent_threats_squares))
         return context
 
 

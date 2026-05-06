@@ -36,6 +36,9 @@
             </div>
             {% endfor %}
         {% endfor %}
+        <svg id="board-arrows"
+             style="position:absolute;top:0;left:0;width:576px;height:576px;pointer-events:none;z-index:4;"
+             xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
 
     <div class="controls">
@@ -64,6 +67,14 @@
         'my-captures':       {{ my_captures_json|safe }},
         'my-threats':        {{ my_threats_json|safe }},
     };
+    const OVERLAY_COLORS = {
+        'opponent-checks':   '#dc143c',
+        'opponent-captures': '#ff8c00',
+        'opponent-threats':  '#eadc32',
+        'my-checks':         '#5D3FD3',
+        'my-captures':       '#0070ff',
+        'my-threats':        '#48bb78',
+    };
     const OVERLAY_PRIORITY = [
         'opponent-checks', 'opponent-captures', 'opponent-threats',
         'my-checks', 'my-captures', 'my-threats'
@@ -72,12 +83,83 @@
     const _savedOverlays = sessionStorage.getItem('chessOverlays');
     const activeOverlays = new Set(_savedOverlays ? JSON.parse(_savedOverlays) : OVERLAY_PRIORITY);
 
+    // ── Square geometry ──────────────────────────────────────
+    function squareCenter(sqName) {
+        const file = sqName.charCodeAt(0) - 97; // 'a'=0 … 'h'=7
+        const rank = parseInt(sqName[1]);        // 1…8
+        return { x: file * 72 + 36, y: (8 - rank) * 72 + 36 };
+    }
+
+    // ── Arrow drawing ────────────────────────────────────────
+    function drawArrow(svg, fromSq, toSq, color) {
+        const fc = squareCenter(fromSq);
+        const tc = squareCenter(toSq);
+        const dx = tc.x - fc.x;
+        const dy = tc.y - fc.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len < 1) return;
+        const ux = dx / len;
+        const uy = dy / len;
+        const px = -uy;
+        const py =  ux;
+
+        const strokeW  = 9;
+        const headLen  = 22;
+        const headHalf = 13;
+        const OPACITY  = 0.82;
+
+        // Arrowhead tip sits at the target square centre
+        const tipX  = tc.x;
+        const tipY  = tc.y;
+        const baseX = tipX - ux * headLen;
+        const baseY = tipY - uy * headLen;
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.classList.add('board-arrow');
+
+        const shaft = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        shaft.setAttribute('x1', fc.x);
+        shaft.setAttribute('y1', fc.y);
+        shaft.setAttribute('x2', baseX);
+        shaft.setAttribute('y2', baseY);
+        shaft.setAttribute('stroke', color);
+        shaft.setAttribute('stroke-width', strokeW);
+        shaft.setAttribute('stroke-opacity', OPACITY);
+        shaft.setAttribute('stroke-linecap', 'round');
+
+        const head = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        head.setAttribute('points',
+            `${tipX},${tipY} ` +
+            `${baseX + px * headHalf},${baseY + py * headHalf} ` +
+            `${baseX - px * headHalf},${baseY - py * headHalf}`
+        );
+        head.setAttribute('fill', color);
+        head.setAttribute('fill-opacity', OPACITY);
+
+        g.appendChild(shaft);
+        g.appendChild(head);
+        svg.appendChild(g);
+    }
+
+    function drawArrows() {
+        const svg = document.getElementById('board-arrows');
+        svg.querySelectorAll('.board-arrow').forEach(el => el.remove());
+        for (const name of OVERLAY_PRIORITY) {
+            if (!activeOverlays.has(name)) continue;
+            const color = OVERLAY_COLORS[name];
+            for (const [from, to] of overlayData[name]) {
+                drawArrow(svg, from, to, color);
+            }
+        }
+    }
+
+    // ── Square colour overlays ───────────────────────────────
     function updateSquareOverlay(sqName) {
         const el = document.getElementById('sq-' + sqName);
         OVERLAY_PRIORITY.forEach(n => el.classList.remove('overlay-' + n));
         if (el.classList.contains('selected') || el.classList.contains('target')) return;
         for (const n of OVERLAY_PRIORITY) {
-            if (activeOverlays.has(n) && overlayData[n].includes(sqName)) {
+            if (activeOverlays.has(n) && overlayData[n].some(([f, t]) => f === sqName || t === sqName)) {
                 el.classList.add('overlay-' + n);
                 break;
             }
@@ -88,19 +170,22 @@
         if (activeOverlays.has(name)) activeOverlays.delete(name);
         else activeOverlays.add(name);
         sessionStorage.setItem('chessOverlays', JSON.stringify([...activeOverlays]));
-        const allSqs = new Set(Object.values(overlayData).flat());
+        const allSqs = new Set(Object.values(overlayData).flat(2));
         allSqs.forEach(sq => updateSquareOverlay(sq));
         document.querySelector(`[data-overlay="${name}"]`).classList.toggle('active', activeOverlays.has(name));
+        drawArrows();
     }
 
-    (function applyInitialOverlays() {
-        const allSqs = new Set(Object.values(overlayData).flat());
+    (function applyInitialState() {
+        const allSqs = new Set(Object.values(overlayData).flat(2));
         allSqs.forEach(sq => updateSquareOverlay(sq));
         OVERLAY_PRIORITY.forEach(n => {
             document.querySelector(`[data-overlay="${n}"]`).classList.toggle('active', activeOverlays.has(n));
         });
+        drawArrows();
     })();
 
+    // ── Move interaction ─────────────────────────────────────
     document.querySelectorAll('.square').forEach(sq => {
         sq.addEventListener('click', () => handleClick(sq.dataset.square));
     });
