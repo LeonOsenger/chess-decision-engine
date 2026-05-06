@@ -3,18 +3,18 @@
 
 {% block content %}
 <div class="chess-container">
-
-    <div class="game-info">
-        <div class="turn-indicator {% if turn == 'White' %}white-turn{% else %}black-turn{% endif %}">
-            {% if is_checkmate %}
-                Checkmate! {{ turn }} loses.
-            {% elif is_stalemate %}
-                Stalemate! It's a draw.
-            {% elif is_check %}
-                {{ turn }}'s turn &mdash; <span class="check-label">CHECK!</span>
-            {% else %}
-                {{ turn }}'s turn
-            {% endif %}
+    <div class="decision-panel">
+        <div class="decision-group">
+            <div class="decision-group-label">Opponent Threats</div>
+            <button class="toggle-btn" data-overlay="opponent-checks"   onclick="toggleOverlay('opponent-checks')">Checks</button>
+            <button class="toggle-btn" data-overlay="opponent-captures" onclick="toggleOverlay('opponent-captures')">Captures</button>
+            <button class="toggle-btn" data-overlay="opponent-threats"  onclick="toggleOverlay('opponent-threats')">Threats</button>
+        </div>
+        <div class="decision-group">
+            <div class="decision-group-label">My Options</div>
+            <button class="toggle-btn" data-overlay="my-checks"   onclick="toggleOverlay('my-checks')">Checks</button>
+            <button class="toggle-btn" data-overlay="my-captures" onclick="toggleOverlay('my-captures')">Captures</button>
+            <button class="toggle-btn" data-overlay="my-threats"  onclick="toggleOverlay('my-threats')">Threats</button>
         </div>
     </div>
 
@@ -56,6 +56,51 @@
     const legalMoves = {{ legal_moves_json|safe }};
     let selectedSquare = null;
 
+    const overlayData = {
+        'opponent-checks':   {{ opponent_checks_json|safe }},
+        'opponent-captures': {{ opponent_captures_json|safe }},
+        'opponent-threats':  {{ opponent_threats_json|safe }},
+        'my-checks':         {{ my_checks_json|safe }},
+        'my-captures':       {{ my_captures_json|safe }},
+        'my-threats':        {{ my_threats_json|safe }},
+    };
+    const OVERLAY_PRIORITY = [
+        'opponent-checks', 'opponent-captures', 'opponent-threats',
+        'my-checks', 'my-captures', 'my-threats'
+    ];
+
+    const _savedOverlays = sessionStorage.getItem('chessOverlays');
+    const activeOverlays = new Set(_savedOverlays ? JSON.parse(_savedOverlays) : OVERLAY_PRIORITY);
+
+    function updateSquareOverlay(sqName) {
+        const el = document.getElementById('sq-' + sqName);
+        OVERLAY_PRIORITY.forEach(n => el.classList.remove('overlay-' + n));
+        if (el.classList.contains('selected') || el.classList.contains('target')) return;
+        for (const n of OVERLAY_PRIORITY) {
+            if (activeOverlays.has(n) && overlayData[n].includes(sqName)) {
+                el.classList.add('overlay-' + n);
+                break;
+            }
+        }
+    }
+
+    function toggleOverlay(name) {
+        if (activeOverlays.has(name)) activeOverlays.delete(name);
+        else activeOverlays.add(name);
+        sessionStorage.setItem('chessOverlays', JSON.stringify([...activeOverlays]));
+        const allSqs = new Set(Object.values(overlayData).flat());
+        allSqs.forEach(sq => updateSquareOverlay(sq));
+        document.querySelector(`[data-overlay="${name}"]`).classList.toggle('active', activeOverlays.has(name));
+    }
+
+    (function applyInitialOverlays() {
+        const allSqs = new Set(Object.values(overlayData).flat());
+        allSqs.forEach(sq => updateSquareOverlay(sq));
+        OVERLAY_PRIORITY.forEach(n => {
+            document.querySelector(`[data-overlay="${n}"]`).classList.toggle('active', activeOverlays.has(n));
+        });
+    })();
+
     document.querySelectorAll('.square').forEach(sq => {
         sq.addEventListener('click', () => handleClick(sq.dataset.square));
     });
@@ -79,17 +124,23 @@
 
     function select(square) {
         selectedSquare = square;
-        document.getElementById('sq-' + square).classList.add('selected');
+        const el = document.getElementById('sq-' + square);
+        el.classList.add('selected');
+        OVERLAY_PRIORITY.forEach(n => el.classList.remove('overlay-' + n));
         (legalMoves[square] || []).forEach(target => {
-            document.getElementById('sq-' + target).classList.add('target');
+            const tEl = document.getElementById('sq-' + target);
+            tEl.classList.add('target');
+            OVERLAY_PRIORITY.forEach(n => tEl.classList.remove('overlay-' + n));
         });
     }
 
     function deselect() {
         if (selectedSquare) {
             document.getElementById('sq-' + selectedSquare).classList.remove('selected');
+            updateSquareOverlay(selectedSquare);
             (legalMoves[selectedSquare] || []).forEach(target => {
                 document.getElementById('sq-' + target).classList.remove('target');
+                updateSquareOverlay(target);
             });
         }
         selectedSquare = null;
