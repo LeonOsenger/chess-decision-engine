@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Chess Decision Engine{% endblock %}
+
+{% block content %}
+<div class="home-container">
+
+    <h1 class="home-title">Chess Decision Engine</h1>
+
+    <div class="home-sections">
+
+        <!-- New Game -->
+        <section class="home-section">
+            <h2 class="section-title">Free Play</h2>
+            <form method="post" action="{% url 'new_game' %}">
+                {% csrf_token %}
+                <button type="submit" class="home-btn primary-btn">New Game</button>
+            </form>
+        </section>
+
+        <!-- Imported Games -->
+        <section class="home-section">
+            <h2 class="section-title">Imported Games</h2>
+            {% if imported_games %}
+                <ul class="game-list">
+                    {% for game in imported_games %}
+                    <li class="game-list-item">
+                        <div class="game-info">
+                            <span class="game-name">{{ game.display_name }}</span>
+                            {% if game.result %}<span class="game-result">{{ game.result }}</span>{% endif %}
+                            {% if game.date %}<span class="game-date">{{ game.date }}</span>{% endif %}
+                        </div>
+                        <a href="{% url 'play_imported' game.pk %}" class="home-btn play-btn">Play</a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="no-games">No imported games yet.</p>
+            {% endif %}
+        </section>
+
+        <!-- Import PGN -->
+        <section class="home-section">
+            <h2 class="section-title">Import PGN</h2>
+            {% if pgn_error %}
+                <p class="pgn-error">{{ pgn_error }}</p>
+            {% endif %}
+            <form method="post" action="{% url 'import_game' %}" class="pgn-import-form">
+                {% csrf_token %}
+                <textarea
+                    name="pgn"
+                    class="pgn-textarea"
+                    rows="8"
+                    placeholder="Paste PGN here…"></textarea>
+                <button type="submit" class="home-btn import-btn">Import</button>
+            </form>
+        </section>
+
+    </div>
+</div>
+{% endblock %}

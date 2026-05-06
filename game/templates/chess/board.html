@@ -2,6 +2,7 @@
 {% load static %}
 
 {% block content %}
+<a href="{% url 'home' %}" class="back-home-btn">&#8592; Home</a>
 <div class="chess-container">
     <div class="decision-panel">
         <div class="decision-group">
@@ -42,10 +43,29 @@
     </div>
 
     <div class="controls">
-        <form method="post" action="{% url 'reset_game' %}">
+        {% if is_imported and in_history_mode %}
+        <div class="history-controls">
+            <span class="move-counter">Move {{ current_index }} / {{ total_moves }}</span>
+            <form method="post" action="{% url 'navigate_history' %}">
+                {% csrf_token %}
+                <input type="hidden" name="direction" value="prev">
+                <button type="submit" class="nav-btn" {% if not has_prev %}disabled{% endif %}>&#8592; Prev</button>
+            </form>
+            <form method="post" action="{% url 'navigate_history' %}">
+                {% csrf_token %}
+                <input type="hidden" name="direction" value="next">
+                <button type="submit" class="nav-btn" {% if not has_next %}disabled{% endif %}>Next &#8594;</button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if has_bookmark %}
+        <form method="post" action="{% url 'return_bookmark' %}">
             {% csrf_token %}
-            <button type="submit" class="reset-btn">New Game</button>
+            <button type="submit" class="return-btn">&#8617; Return to History</button>
         </form>
+        {% endif %}
+
     </div>
 
     <form method="post" action="{% url 'make_move' %}" id="move-form">
@@ -108,7 +128,6 @@
         const headHalf = 13;
         const OPACITY  = 0.82;
 
-        // Arrowhead tip sits at the target square centre
         const tipX  = tc.x;
         const tipY  = tc.y;
         const baseX = tipX - ux * headLen;
